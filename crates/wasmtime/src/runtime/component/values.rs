@@ -1,8 +1,10 @@
-use crate::ValRaw;
 use crate::component::ResourceAny;
 use crate::component::concurrent::{self, ErrorContext, FutureReader, StreamReader};
 use crate::component::func::{Lift, LiftContext, Lower, LowerContext, desc};
-use crate::prelude::*;
+use crate::store::AutoAssertNoGc;
+use crate::vm::VMGcRef;
+use crate::{StorageType, prelude::*};
+use crate::{StructType, ValRaw};
 use core::mem::MaybeUninit;
 use core::slice::{Iter, IterMut};
 use wasmtime_component_util::{DiscriminantSize, FlagsSize};
@@ -345,6 +347,104 @@ impl Val {
             InterfaceType::ErrorContext(_) => {
                 ErrorContext::linear_lift_from_memory(cx, ty, bytes)?.into_val()
             }
+        })
+    }
+
+    /// Deserialize a value of this type from the Gc heap.
+    pub(crate) fn gc_load(
+        cx: &mut LiftContext<'_>,
+        ty: InterfaceType,
+        gc_ref: VMGcRef,
+    ) -> Result<Val> {
+        Ok(match ty {
+            InterfaceType::Bool => todo!(),
+            InterfaceType::S8 => todo!(),
+            InterfaceType::U8 => todo!(),
+            InterfaceType::S16 => todo!(),
+            InterfaceType::U16 => todo!(),
+            InterfaceType::S32 => todo!(),
+            InterfaceType::U32 => todo!(),
+            InterfaceType::S64 => todo!(),
+            InterfaceType::U64 => todo!(),
+            InterfaceType::Float32 => todo!(),
+            InterfaceType::Float64 => todo!(),
+            InterfaceType::Char => todo!(),
+            InterfaceType::String => {
+                let gc_store = cx.gc_store().unwrap();
+                let header = gc_store.gc_heap.header(&gc_ref);
+                let gc_ty_idx = header.ty().unwrap();
+                let wasmtime_environ::GcLayout::Array(layout) =
+                    cx.type_registry().layout(gc_ty_idx).unwrap()
+                else {
+                    panic!("should be array")
+                };
+                let arrayref = gc_ref.into_arrayref(&*gc_store.gc_heap).unwrap();
+                let len = gc_store.gc_heap.array_len(&arrayref);
+                let data = gc_store.gc_heap.gc_object_data(arrayref.as_gc_ref());
+                Val::String(str::from_utf8(data.slice(layout.base_size, len))?.into())
+            }
+
+            InterfaceType::Record(type_record_index) => {
+                let record_ty = &cx.types[type_record_index];
+                let gc_store = cx.gc_store().unwrap();
+                let header = gc_store.gc_heap.header(&gc_ref);
+                let gc_ty_idx = header.ty().unwrap();
+                let structref = gc_ref.into_structref(&*gc_store.gc_heap).unwrap();
+                let wasmtime_environ::GcLayout::Struct(layout) =
+                    cx.type_registry().layout(gc_ty_idx).unwrap()
+                else {
+                    panic!("should be struct")
+                };
+                let struct_ty = StructType::from_shared_type_index(cx.store.engine(), gc_ty_idx);
+                let fields = struct_ty.fields();
+                let mut no_gc_store = AutoAssertNoGc::new(&mut cx.store);
+                Val::Record(
+                    record_ty
+                        .fields
+                        .iter()
+                        .zip(fields)
+                        // Assume named fields are in order
+                        .enumerate()
+                        .map(|(i, (field, f_ty))| {
+                            (
+                                field.name.to_string(),
+                                // HACK: convert core value to component value
+                                // We should instead read the component value from the bytes
+                                // directly
+                                match structref.read_field(
+                                    &mut no_gc_store,
+                                    &layout,
+                                    f_ty.element_type(),
+                                    i,
+                                ) {
+                                    crate::Val::I32(i) => Val::S32(i),
+                                    crate::Val::I64(i) => Val::S64(i),
+                                    crate::Val::F32(f) => Val::Float32(f32::from_bits(f)),
+                                    crate::Val::F64(f) => Val::Float64(f64::from_bits(f)),
+                                    crate::Val::V128(_) => todo!(),
+                                    crate::Val::FuncRef(_) => todo!(),
+                                    crate::Val::ExternRef(_) => todo!(),
+                                    crate::Val::AnyRef(_) => todo!(),
+                                    crate::Val::ExnRef(_) => todo!(),
+                                    crate::Val::ContRef(_) => todo!(),
+                                },
+                            )
+                        })
+                        .collect(),
+                )
+            }
+            InterfaceType::Variant(type_variant_index) => todo!(),
+            InterfaceType::List(type_list_index) => todo!(),
+            InterfaceType::Tuple(type_tuple_index) => todo!(),
+            InterfaceType::Flags(type_flags_index) => todo!(),
+            InterfaceType::Enum(type_enum_index) => todo!(),
+            InterfaceType::Option(type_option_index) => todo!(),
+            InterfaceType::Result(type_result_index) => todo!(),
+            InterfaceType::Own(type_resource_table_index) => todo!(),
+            InterfaceType::Borrow(type_resource_table_index) => todo!(),
+            InterfaceType::Future(type_future_table_index) => todo!(),
+            InterfaceType::Stream(type_stream_table_index) => todo!(),
+            InterfaceType::ErrorContext(type_component_local_error_context_table_index) => todo!(),
         })
     }
 
@@ -714,6 +814,51 @@ impl Val {
         Ok(wasm_wave::to_string(self)?)
     }
 }
+
+/// Read a field from a GC object at a given offset.
+//pub(crate) fn read_struct_field(
+//    gc_ref: &VMGcRef,
+//    store: &mut AutoAssertNoGc,
+//    ty: &StorageType,
+//    offset: u32,
+//) -> Val {
+//    let data = store.unwrap_gc_store_mut().gc_object_data(gc_ref);
+//    match ty {
+//        StorageType::I8 => Val::I32(data.read_u8(offset).into()),
+//        StorageType::I16 => Val::I32(data.read_u16(offset).into()),
+//        StorageType::ValType(ValType::I32) => Val::I32(data.read_i32(offset)),
+//        StorageType::ValType(ValType::I64) => Val::I64(data.read_i64(offset)),
+//        StorageType::ValType(ValType::F32) => Val::F32(data.read_u32(offset)),
+//        StorageType::ValType(ValType::F64) => Val::F64(data.read_u64(offset)),
+//        StorageType::ValType(ValType::V128) => Val::V128(data.read_v128(offset)),
+//        StorageType::ValType(ValType::Ref(r)) => match r.heap_type().top() {
+//            HeapType::Extern => {
+//                let raw = data.read_u32(offset);
+//                Val::ExternRef(ExternRef::_from_raw(store, raw))
+//            }
+//            HeapType::Any => {
+//                let raw = data.read_u32(offset);
+//                Val::AnyRef(AnyRef::_from_raw(store, raw))
+//            }
+//            HeapType::Exn => {
+//                let raw = data.read_u32(offset);
+//                Val::ExnRef(ExnRef::_from_raw(store, raw))
+//            }
+//            HeapType::Func => {
+//                let func_ref_id = data.read_u32(offset);
+//                let func_ref_id = FuncRefTableId::from_raw(func_ref_id);
+//                let func_ref = store
+//                    .unwrap_gc_store()
+//                    .func_ref_table
+//                    .get_untyped(func_ref_id);
+//                Val::FuncRef(unsafe {
+//                    func_ref.map(|p| Func::from_vm_func_ref(store.id(), p.as_non_null()))
+//                })
+//            }
+//            otherwise => unreachable!("not a top type: {otherwise:?}"),
+//        },
+//    }
+//}
 
 impl PartialEq for Val {
     fn eq(&self, other: &Self) -> bool {

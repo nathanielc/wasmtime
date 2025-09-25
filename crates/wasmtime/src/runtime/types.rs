@@ -1993,7 +1993,7 @@ impl StructType {
             .map(|ty| FieldType::from_wasm_field_type(engine, ty))
     }
 
-    /// Returns the list of field types for this function.
+    /// Returns the list of field types for this struct.
     #[inline]
     pub fn fields(&self) -> impl ExactSizeIterator<Item = FieldType> + '_ {
         let engine = self.engine();

@@ -7,6 +7,7 @@ use crate::runtime::vm::component::{
 };
 use crate::runtime::vm::{SendSyncPtr, VMFuncRef, ValRaw};
 use crate::store::{StoreId, StoreOpaque};
+use crate::vm::VMGcRef;
 use crate::{AsContextMut, StoreContextMut, Trap};
 use core::any::TypeId;
 use core::fmt;

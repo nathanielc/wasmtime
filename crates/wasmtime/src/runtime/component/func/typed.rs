@@ -3,6 +3,7 @@ use crate::component::func::{Func, LiftContext, LowerContext, Options};
 use crate::component::matching::InstanceType;
 use crate::component::storage::{storage_as_slice, storage_as_slice_mut};
 use crate::prelude::*;
+use crate::vm::VMGcRef;
 use crate::{AsContextMut, StoreContext, StoreContextMut, ValRaw};
 use alloc::borrow::Cow;
 use core::fmt;
@@ -992,6 +993,7 @@ macro_rules! forward_string_lifts {
             fn linear_lift_from_memory(cx: &mut LiftContext<'_>, ty: InterfaceType, bytes: &[u8]) -> Result<Self> {
                 Ok(<WasmStr as Lift>::linear_lift_from_memory(cx, ty, bytes)?.to_str_from_memory(cx.memory())?.into())
             }
+
         }
     )*)
 }
@@ -1127,6 +1129,7 @@ macro_rules! integers {
                 Ok($primitive::from_le_bytes(bytes.try_into().unwrap()))
             }
 
+
             fn linear_lift_into_from_memory(
                 cx: &mut LiftContext<'_>,
                 list: &WasmList<Self>,
@@ -1244,6 +1247,7 @@ macro_rules! floats {
                 debug_assert!((bytes.as_ptr() as usize) % Self::SIZE32 == 0);
                 Ok($float::from_le_bytes(bytes.try_into().unwrap()))
             }
+
 
             fn linear_lift_list_from_memory(cx: &mut LiftContext<'_>, list: &WasmList<Self>) -> Result<Vec<Self>> where Self: Sized {
                 // See comments in `WasmList::get` for the panicking indexing
@@ -2835,6 +2839,7 @@ macro_rules! impl_component_ty_for_tuples {
                 )*
                 Ok(($($t,)*))
             }
+
         }
 
         #[allow(non_snake_case, reason = "macro-generated code")]

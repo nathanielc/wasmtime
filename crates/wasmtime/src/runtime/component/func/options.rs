@@ -1,13 +1,15 @@
 use crate::component::matching::InstanceType;
 use crate::component::resources::{HostResourceData, HostResourceIndex, HostResourceTables};
 use crate::component::{Instance, ResourceType};
-use crate::prelude::*;
 use crate::runtime::vm::component::{
     CallContexts, ComponentInstance, HandleTable, InstanceFlags, ResourceTables,
 };
 use crate::runtime::vm::{VMFuncRef, VMMemoryDefinition};
-use crate::store::{StoreId, StoreOpaque};
+use crate::store::{AutoAssertNoGc, StoreId, StoreOpaque};
+use crate::type_registry::TypeRegistry;
+use crate::vm::GcStore;
 use crate::{FuncType, StoreContextMut};
+use crate::{prelude::*, type_registry};
 use alloc::sync::Arc;
 use core::pin::Pin;
 use core::ptr::NonNull;
@@ -53,6 +55,9 @@ pub struct Options {
 
     #[cfg(feature = "component-model-async")]
     callback: Option<NonNull<VMFuncRef>>,
+
+    /// Whether the Gc data model is used.
+    gc: bool,
 }
 
 // The `Options` structure stores raw pointers but they're never used unless a
@@ -80,9 +85,9 @@ impl Options {
             ref data_model,
             ..
         } = instance.component().env_component().options[index];
-        let (memory, realloc) = match data_model {
-            CanonicalOptionsDataModel::Gc { .. } => (None, None),
-            CanonicalOptionsDataModel::LinearMemory(o) => (o.memory, o.realloc),
+        let (memory, realloc, gc) = match data_model {
+            CanonicalOptionsDataModel::Gc { .. } => (None, None, true),
+            CanonicalOptionsDataModel::LinearMemory(o) => (o.memory, o.realloc, false),
         };
         let memory = memory.map(|i| NonNull::new(instance.runtime_memory(i)).unwrap());
         let realloc = realloc.map(|i| instance.runtime_realloc(i));
@@ -97,6 +102,7 @@ impl Options {
             async_,
             #[cfg(feature = "component-model-async")]
             callback,
+            gc,
         }
     }
 
@@ -198,6 +204,11 @@ impl Options {
     #[cfg(feature = "component-model-async")]
     pub(crate) fn memory_raw(&self) -> Option<NonNull<VMMemoryDefinition>> {
         self.memory
+    }
+
+    /// Returns whether this lifting uses the Gc data model.
+    pub fn gc(&self) -> bool {
+        self.gc
     }
 }
 
@@ -469,6 +480,9 @@ pub struct LiftContext<'a> {
     pub types: &'a Arc<ComponentTypes>,
 
     memory: Option<&'a [u8]>,
+    gc_store: Option<&'a GcStore>,
+    type_registry: &'a TypeRegistry,
+    pub store: &'a mut StoreOpaque,
 
     instance: Pin<&'a mut ComponentInstance>,
     instance_handle: Instance,
@@ -489,21 +503,27 @@ impl<'a> LiftContext<'a> {
         instance_handle: Instance,
     ) -> LiftContext<'a> {
         // From `&mut StoreOpaque` provided the goal here is to project out
-        // three different disjoint fields owned by the store: memory,
+        // four different disjoint fields owned by the store: memory, gc_store,
         // `CallContexts`, and `HandleTable`. There's no native API for that
         // so it's hacked around a bit. This unsafe pointer cast could be fixed
         // with more methods in more places, but it doesn't seem worth doing it
         // at this time.
-        let memory = options
-            .memory
-            .map(|_| options.memory(unsafe { &*(store as *const StoreOpaque) }));
+        let store_opaque = unsafe { &*(store as *const StoreOpaque) };
+        let memory = options.memory.map(|_| options.memory(store_opaque));
+        let gc_store = store_opaque.optional_gc_store();
+        let type_registry = store_opaque.engine().signatures();
+
+        let store_ = unsafe { &mut *(store as *mut StoreOpaque) };
         let (calls, host_table, host_resource_data, instance) =
             store.component_resource_state_with_instance(instance_handle);
         let (component, instance) = instance.component_and_self();
 
         LiftContext {
             memory,
+            gc_store,
+            type_registry,
             options,
+            store: store_,
             types: component.types(),
             instance,
             instance_handle,
@@ -615,5 +635,13 @@ impl<'a> LiftContext<'a> {
     #[inline]
     pub fn exit_call(&mut self) -> Result<()> {
         self.resource_tables().exit_call()
+    }
+
+    pub fn gc_store(&self) -> Option<&'a GcStore> {
+        self.gc_store
+    }
+
+    pub fn type_registry(&self) -> &'a TypeRegistry {
+        self.type_registry
     }
 }

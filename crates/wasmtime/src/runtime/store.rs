@@ -1765,6 +1765,23 @@ impl StoreOpaque {
         }
     }
 
+    /// Attempts to access the GC store that has been previously allocated.
+    ///
+    /// This method will return `Some` if the GC store was previously allocated.
+    /// A `None` return value means either that the GC heap hasn't yet been
+    /// allocated or that it does not need to be allocated for this store. Note
+    /// that to require a GC store in a particular situation it's recommended to
+    /// use [`Self::require_gc_store_mut`] instead.
+    #[inline]
+    pub(crate) fn optional_gc_store(&self) -> Option<&GcStore> {
+        if cfg!(not(feature = "gc")) || !self.engine.features().gc_types() {
+            debug_assert!(self.gc_store.is_none());
+            None
+        } else {
+            self.gc_store.as_ref()
+        }
+    }
+
     /// Helper to assert that a GC store was previously allocated and is
     /// present.
     ///

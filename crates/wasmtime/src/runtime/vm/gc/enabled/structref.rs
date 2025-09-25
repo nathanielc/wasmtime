@@ -50,7 +50,7 @@ impl VMGcRef {
     ///
     /// If this is not a GC reference to an `structref`, `Err(self)` is
     /// returned.
-    pub fn into_structref(self, gc_heap: &impl GcHeap) -> Result<VMStructRef, VMGcRef> {
+    pub fn into_structref(self, gc_heap: &(impl GcHeap + ?Sized)) -> Result<VMStructRef, VMGcRef> {
         if self.is_structref(gc_heap) {
             Ok(self.into_structref_unchecked())
         } else {

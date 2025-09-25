@@ -7,10 +7,12 @@ use crate::prelude::*;
 use crate::runtime::vm::component::{ComponentInstance, InstanceFlags, ResourceTables};
 use crate::runtime::vm::{Export, VMFuncRef};
 use crate::store::StoreOpaque;
+use crate::vm::{TypedGcRef, VMGcRef};
 use crate::{AsContext, AsContextMut, StoreContextMut, ValRaw};
 use anyhow::Context as _;
 use core::mem::{self, MaybeUninit};
 use core::ptr::NonNull;
+use log::debug;
 use wasmtime_environ::component::{
     CanonicalOptions, ExportIndex, InterfaceType, MAX_FLAT_PARAMS, MAX_FLAT_RESULTS, TypeFuncIndex,
     TypeTuple,
@@ -823,8 +825,10 @@ impl Func {
             InterfaceType::Tuple(i) => &cx.types[i],
             _ => unreachable!(),
         };
+        debug!("lift_results results_ty {results_ty:?}");
         if results_ty.abi.flat_count(max_flat).is_some() {
             let mut flat = src.iter();
+            debug!("lift_results flat {flat:?}");
             Ok(Box::new(
                 results_ty
                     .types
@@ -843,23 +847,41 @@ impl Func {
         src: &mut core::slice::Iter<'_, ValRaw>,
     ) -> Result<impl Iterator<Item = Result<Val>> + use<'a, 'b>> {
         // FIXME(#4311): needs to read an i64 for memory64
-        let ptr = usize::try_from(src.next().unwrap().get_u32())?;
-        if ptr % usize::try_from(results_ty.abi.align32)? != 0 {
-            bail!("return pointer not aligned");
+        if cx.options.gc() {
+            Ok(results_ty
+                .types
+                .iter()
+                .zip(src)
+                .map(|(ty, src)| {
+                    Val::gc_load(cx, *ty, VMGcRef::from_raw_u32(src.get_u32()).unwrap())
+                })
+                .collect::<Vec<_>>()
+                .into_iter())
+        } else {
+            let src = src.next().unwrap();
+            let ptr = usize::try_from(src.get_u32())?;
+            if ptr % usize::try_from(results_ty.abi.align32)? != 0 {
+                bail!("return pointer not aligned");
+            }
+            debug!("lift_results load {ptr}");
+
+            let bytes = cx
+                .memory()
+                .get(ptr..)
+                .and_then(|b| b.get(..usize::try_from(results_ty.abi.size32).unwrap()))
+                .ok_or_else(|| anyhow::anyhow!("pointer out of bounds of memory"))?;
+            let mut offset = 0;
+            Ok(results_ty
+                .types
+                .iter()
+                .map(move |ty| {
+                    let abi = cx.types.canonical_abi(ty);
+                    let offset = abi.next_field32_size(&mut offset);
+                    Val::load(cx, *ty, &bytes[offset..][..abi.size32 as usize])
+                })
+                .collect::<Vec<_>>()
+                .into_iter())
         }
-
-        let bytes = cx
-            .memory()
-            .get(ptr..)
-            .and_then(|b| b.get(..usize::try_from(results_ty.abi.size32).unwrap()))
-            .ok_or_else(|| anyhow::anyhow!("pointer out of bounds of memory"))?;
-
-        let mut offset = 0;
-        Ok(results_ty.types.iter().map(move |ty| {
-            let abi = cx.types.canonical_abi(ty);
-            let offset = abi.next_field32_size(&mut offset);
-            Val::load(cx, *ty, &bytes[offset..][..abi.size32 as usize])
-        }))
     }
 
     #[cfg(feature = "component-model-async")]
