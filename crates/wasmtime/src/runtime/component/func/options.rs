@@ -7,7 +7,7 @@ use crate::runtime::vm::component::{
 use crate::runtime::vm::{VMFuncRef, VMMemoryDefinition};
 use crate::store::{AutoAssertNoGc, StoreId, StoreOpaque};
 use crate::type_registry::TypeRegistry;
-use crate::vm::GcStore;
+use crate::vm::{GcHeap, GcStore};
 use crate::{FuncType, StoreContextMut};
 use crate::{prelude::*, type_registry};
 use alloc::sync::Arc;
@@ -178,6 +178,18 @@ impl Options {
             let memory = self.memory.unwrap().as_ref();
             core::slice::from_raw_parts_mut(memory.base.as_ptr(), memory.current_length())
         }
+    }
+
+    /// Asserts that this function has an associated gc store attached to it and
+    /// then returns the gc store tied to the lifetime of the provided
+    /// store.
+    pub fn gc_store<'a>(&self, store: &'a StoreOpaque) -> &'a GcStore {
+        debug_assert!(
+            self.gc,
+            "options should have gc data model when accessing gc store"
+        );
+        self.store_id.assert_belongs_to(store.id());
+        store.require_gc_store().unwrap()
     }
 
     /// Returns the underlying encoding used for strings in this

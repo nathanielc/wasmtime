@@ -480,7 +480,7 @@ pub unsafe trait GcHeap: 'static + Send + Sync {
         start..end
     }
 
-    /// Get a mutable borrow of the given object's data.
+    /// Get a borrow of the given object's data.
     ///
     /// # Panics
     ///

@@ -3,7 +3,8 @@ use crate::component::func::{Func, LiftContext, LowerContext, Options};
 use crate::component::matching::InstanceType;
 use crate::component::storage::{storage_as_slice, storage_as_slice_mut};
 use crate::prelude::*;
-use crate::vm::VMGcRef;
+use crate::type_registry::TypeRegistry;
+use crate::vm::{GcStore, VMGcRef};
 use crate::{AsContextMut, StoreContext, StoreContextMut, ValRaw};
 use alloc::borrow::Cow;
 use core::fmt;
@@ -887,6 +888,11 @@ pub unsafe trait Lift: Sized + ComponentType {
         bytes: &[u8],
     ) -> Result<Self>;
 
+    #[doc(hidden)]
+    fn gc_lift(_cx: &mut LiftContext<'_>, _ty: InterfaceType, _gc_ref: VMGcRef) -> Result<Self> {
+        todo!()
+    }
+
     /// Converts `list` into a `Vec<T>`, used in `Lift for Vec<T>`.
     #[doc(hidden)]
     fn linear_lift_list_from_memory(
@@ -992,6 +998,11 @@ macro_rules! forward_string_lifts {
             #[inline]
             fn linear_lift_from_memory(cx: &mut LiftContext<'_>, ty: InterfaceType, bytes: &[u8]) -> Result<Self> {
                 Ok(<WasmStr as Lift>::linear_lift_from_memory(cx, ty, bytes)?.to_str_from_memory(cx.memory())?.into())
+            }
+
+            #[inline]
+            fn gc_lift(cx: &mut LiftContext<'_>, ty: InterfaceType, gc_ref: VMGcRef) -> Result<Self> {
+                Ok(<WasmStr as Lift>::gc_lift(cx, ty, gc_ref)?.to_str_from_gc(cx.gc_store().unwrap(),cx.type_registry())?.into())
             }
 
         }
@@ -1605,10 +1616,23 @@ fn lower_string<T>(cx: &mut LowerContext<'_, T>, string: &str) -> Result<(usize,
 ///
 /// Also note that this type does not implement [`Lower`], it only implements
 /// [`Lift`].
-pub struct WasmStr {
-    ptr: usize,
-    len: usize,
-    options: Options,
+pub enum WasmStr {
+    /// A string that exists in linear memory
+    Linear {
+        /// Offest in linear memory where the string begins
+        ptr: usize,
+        /// Length in bytes of the string data
+        len: usize,
+        /// Access to the linear memory
+        options: Options,
+    },
+    /// A string that exists in GC heap space
+    Gc {
+        /// Reference to the string object on the heap
+        gc_ref: VMGcRef,
+        /// Access to the heap space
+        options: Options,
+    },
 }
 
 impl WasmStr {
@@ -1628,9 +1652,16 @@ impl WasmStr {
             Some(n) if n <= cx.memory().len() => {}
             _ => bail!("string pointer/length out of bounds of memory"),
         }
-        Ok(WasmStr {
+        Ok(WasmStr::Linear {
             ptr,
             len,
+            options: *cx.options,
+        })
+    }
+    pub(crate) fn gc_new(gc_ref: VMGcRef, cx: &mut LiftContext<'_>) -> Result<WasmStr> {
+        // TODO: Do appropriate bounds checks
+        Ok(WasmStr::Gc {
+            gc_ref,
             options: *cx.options,
         })
     }
@@ -1661,48 +1692,113 @@ impl WasmStr {
         store: impl Into<StoreContext<'a, T>>,
     ) -> Result<Cow<'a, str>> {
         let store = store.into().0;
-        let memory = self.options.memory(store);
-        self.to_str_from_memory(memory)
+        let (data, utf16) = match self {
+            WasmStr::Linear { ptr, len, options } => {
+                let memory = options.memory(store);
+                Self::data_from_memory(*ptr, *len, memory)
+            }
+            WasmStr::Gc { gc_ref, options } => {
+                let gc_store = options.gc_store(store);
+                let header = gc_store.gc_heap.header(&gc_ref);
+                let gc_ty_idx = header.ty().unwrap();
+                let wasmtime_environ::GcLayout::Array(layout) =
+                    store.engine().signatures().layout(gc_ty_idx).unwrap()
+                else {
+                    panic!("should be array")
+                };
+                let arrayref = gc_ref.as_arrayref(&*gc_store.gc_heap).unwrap();
+                let len = gc_store.gc_heap.array_len(&arrayref);
+                let data = gc_store.gc_heap.gc_object_data(arrayref.as_gc_ref());
+                //TODO: Check if utf16
+                (data.slice(layout.base_size, len), false)
+            }
+        };
+        self.to_str_from_data(data, utf16)
+    }
+
+    fn options(&self) -> &Options {
+        match self {
+            WasmStr::Linear { options, .. } | WasmStr::Gc { options, .. } => options,
+        }
+    }
+
+    fn data_from_memory(ptr: usize, len: usize, memory: &[u8]) -> (&[u8], bool) {
+        // Note that bounds-checking already happen in construction of `WasmStr`
+        // so this is never expected to panic. This could theoretically be
+        // unchecked indexing if we're feeling wild enough.
+        if len & UTF16_TAG == 0 {
+            (&memory[ptr..][..len], false)
+        } else {
+            (&memory[ptr..][..len * 2], true)
+        }
     }
 
     pub(crate) fn to_str_from_memory<'a>(&self, memory: &'a [u8]) -> Result<Cow<'a, str>> {
-        match self.options.string_encoding() {
-            StringEncoding::Utf8 => self.decode_utf8(memory),
-            StringEncoding::Utf16 => self.decode_utf16(memory, self.len),
+        let WasmStr::Linear { ptr, len, .. } = self else {
+            bail!(
+                "WasmStr should be created from linear memory in order to read the str from memory"
+            )
+        };
+        let (data, utf16) = Self::data_from_memory(*ptr, *len, memory);
+        self.to_str_from_data(data, utf16)
+    }
+    fn data_from_gc<'a>(
+        gc_store: &'a GcStore,
+        types: &TypeRegistry,
+        gc_ref: &VMGcRef,
+    ) -> (&'a [u8], bool) {
+        let header = gc_store.gc_heap.header(gc_ref);
+        let gc_ty_idx = header.ty().unwrap();
+        let wasmtime_environ::GcLayout::Array(layout) = types.layout(gc_ty_idx).unwrap() else {
+            panic!("should be array")
+        };
+        let arrayref = gc_ref.as_arrayref(&*gc_store.gc_heap).unwrap();
+        let len = gc_store.gc_heap.array_len(&arrayref);
+        let data = gc_store.gc_heap.gc_object_data(arrayref.as_gc_ref());
+        //TODO: Check if utf16
+        (data.slice(layout.base_size, len), false)
+    }
+    pub(crate) fn to_str_from_gc<'a>(
+        &self,
+        gc_store: &'a GcStore,
+        types: &TypeRegistry,
+    ) -> Result<Cow<'a, str>> {
+        let WasmStr::Gc { gc_ref, .. } = self else {
+            bail!("WasmStr should be created from gc memory in order to read the str from gc")
+        };
+        let (data, utf16) = Self::data_from_gc(gc_store, types, gc_ref);
+        self.to_str_from_data(data, utf16)
+    }
+    pub(crate) fn to_str_from_data<'a>(&self, data: &'a [u8], utf16: bool) -> Result<Cow<'a, str>> {
+        match self.options().string_encoding() {
+            StringEncoding::Utf8 => self.decode_utf8(data),
+            StringEncoding::Utf16 => self.decode_utf16(data),
             StringEncoding::CompactUtf16 => {
-                if self.len & UTF16_TAG == 0 {
-                    self.decode_latin1(memory)
+                if !utf16 {
+                    self.decode_latin1(data)
                 } else {
-                    self.decode_utf16(memory, self.len ^ UTF16_TAG)
+                    self.decode_utf16(data)
                 }
             }
         }
     }
 
-    fn decode_utf8<'a>(&self, memory: &'a [u8]) -> Result<Cow<'a, str>> {
-        // Note that bounds-checking already happen in construction of `WasmStr`
-        // so this is never expected to panic. This could theoretically be
-        // unchecked indexing if we're feeling wild enough.
-        Ok(str::from_utf8(&memory[self.ptr..][..self.len])?.into())
+    fn decode_utf8<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, str>> {
+        Ok(str::from_utf8(&data)?.into())
     }
 
-    fn decode_utf16<'a>(&self, memory: &'a [u8], len: usize) -> Result<Cow<'a, str>> {
+    fn decode_utf16<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, str>> {
         // See notes in `decode_utf8` for why this is panicking indexing.
-        let memory = &memory[self.ptr..][..len * 2];
         Ok(core::char::decode_utf16(
-            memory
-                .chunks(2)
+            data.chunks(2)
                 .map(|chunk| u16::from_le_bytes(chunk.try_into().unwrap())),
         )
         .collect::<Result<String, _>>()?
         .into())
     }
 
-    fn decode_latin1<'a>(&self, memory: &'a [u8]) -> Result<Cow<'a, str>> {
-        // See notes in `decode_utf8` for why this is panicking indexing.
-        Ok(encoding_rs::mem::decode_latin1(
-            &memory[self.ptr..][..self.len],
-        ))
+    fn decode_latin1<'a>(&self, data: &'a [u8]) -> Result<Cow<'a, str>> {
+        Ok(encoding_rs::mem::decode_latin1(data))
     }
 }
 
@@ -1749,6 +1845,10 @@ unsafe impl Lift for WasmStr {
         let len = u32::from_le_bytes(bytes[4..].try_into().unwrap());
         let (ptr, len) = (usize::try_from(ptr)?, usize::try_from(len)?);
         WasmStr::new(ptr, len, cx)
+    }
+    #[inline]
+    fn gc_lift(cx: &mut LiftContext<'_>, _ty: InterfaceType, gc_ref: VMGcRef) -> Result<Self> {
+        WasmStr::gc_new(gc_ref, cx)
     }
 }
 

@@ -369,21 +369,7 @@ impl Val {
             InterfaceType::Float32 => todo!(),
             InterfaceType::Float64 => todo!(),
             InterfaceType::Char => todo!(),
-            InterfaceType::String => {
-                let gc_store = cx.gc_store().unwrap();
-                let header = gc_store.gc_heap.header(&gc_ref);
-                let gc_ty_idx = header.ty().unwrap();
-                let wasmtime_environ::GcLayout::Array(layout) =
-                    cx.type_registry().layout(gc_ty_idx).unwrap()
-                else {
-                    panic!("should be array")
-                };
-                let arrayref = gc_ref.into_arrayref(&*gc_store.gc_heap).unwrap();
-                let len = gc_store.gc_heap.array_len(&arrayref);
-                let data = gc_store.gc_heap.gc_object_data(arrayref.as_gc_ref());
-                Val::String(str::from_utf8(data.slice(layout.base_size, len))?.into())
-            }
-
+            InterfaceType::String => Val::String(<_>::gc_lift(cx, ty, gc_ref)?),
             InterfaceType::Record(type_record_index) => {
                 let record_ty = &cx.types[type_record_index];
                 let gc_store = cx.gc_store().unwrap();

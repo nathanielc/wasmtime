@@ -114,6 +114,13 @@ impl ModuleTypesBuilder {
     ) -> WasmResult<ModuleInternedRecGroupIndex> {
         assert_eq!(validator_types.id(), self.validator_id);
 
+        log::trace!(
+            "elements({:?}) {:?}",
+            rec_group_id,
+            validator_types
+                .rec_group_elements(rec_group_id)
+                .collect::<std::vec::Vec<_>>(),
+        );
         self.start_rec_group(
             validator_types,
             validator_types.rec_group_elements(rec_group_id),
@@ -513,6 +520,7 @@ where
     fn lookup_heap_type(&self, index: UnpackedIndex) -> WasmHeapType {
         match index {
             UnpackedIndex::Id(id) => {
+                log::debug!("heap type: {id:?} {:?}", self.types.wasmparser_to_wasmtime);
                 let interned = self.types.wasmparser_to_wasmtime[&id];
                 let index = EngineOrModuleTypeIndex::Module(interned);
 

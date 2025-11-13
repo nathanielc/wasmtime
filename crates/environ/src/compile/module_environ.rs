@@ -290,6 +290,18 @@ impl<'a, 'data> ModuleEnvironment<'a, 'data> {
                 // groups, we need copy the duplicates over (shallowly) as well,
                 // so that our types index space doesn't have holes.
                 let mut type_index = 0;
+
+                while type_index < count {
+                    let validator_types = self.validator.types(0).unwrap();
+                    let core_type_id = validator_types.core_type_at_in_module(type_index);
+                    log::trace!(
+                        "  ==> {core_type_id:?} = {:?}",
+                        validator_types[core_type_id],
+                    );
+                    type_index += 1;
+                }
+
+                let mut type_index = 0;
                 while type_index < count {
                     let validator_types = self.validator.types(0).unwrap();
 
@@ -321,6 +333,7 @@ impl<'a, 'data> ModuleEnvironment<'a, 'data> {
 
                     // Advance `type_index` to the start of the next rec group.
                     type_index += u32::try_from(len).unwrap();
+                    log::trace!("next type index {type_index}")
                 }
             }
 
