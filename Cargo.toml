@@ -50,7 +50,10 @@ wasmtime-cranelift = { workspace = true, optional = true }
 wasmtime-environ = { workspace = true }
 wasmtime-explorer = { workspace = true, optional = true }
 wasmtime-wast = { workspace = true, optional = true }
-wasi-common = { workspace = true, default-features = true, features = ["exit", "tokio"], optional = true }
+wasi-common = { workspace = true, default-features = true, features = [
+    "exit",
+    "tokio",
+], optional = true }
 wasmtime-wasi = { workspace = true, default-features = true, optional = true }
 wasmtime-wasi-nn = { workspace = true, optional = true }
 wasmtime-wasi-config = { workspace = true, optional = true }
@@ -82,7 +85,7 @@ pulley-interpreter = { workspace = true, optional = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 cfg-if = { workspace = true }
-tokio = { workspace = true, optional = true, features = [ "signal", "macros" ] }
+tokio = { workspace = true, optional = true, features = ["signal", "macros"] }
 hyper = { workspace = true, optional = true }
 http = { workspace = true, optional = true }
 http-body-util = { workspace = true, optional = true }
@@ -92,12 +95,25 @@ rustix = { workspace = true, features = ["mm", "process"] }
 
 [dev-dependencies]
 # depend again on wasmtime to activate its default features for tests
-wasmtime = { workspace = true, features = ['default', 'winch', 'pulley', 'all-arch', 'call-hook', 'memory-protection-keys', 'component-model-async'] }
+wasmtime = { workspace = true, features = [
+    'default',
+    'winch',
+    'pulley',
+    'all-arch',
+    'call-hook',
+    'memory-protection-keys',
+    'component-model-async',
+] }
 env_logger = { workspace = true }
 log = { workspace = true }
 filecheck = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["rt", "time", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = [
+    "rt",
+    "time",
+    "macros",
+    "rt-multi-thread",
+] }
 wast = { workspace = true }
 criterion = { workspace = true }
 num_cpus = "1.13.0"
@@ -107,7 +123,10 @@ wat = { workspace = true }
 rayon = "1.5.0"
 wasmtime-wast = { workspace = true, features = ['component-model'] }
 wasmtime-component-util = { workspace = true }
-wasmtime-test-util = { workspace = true, features = ['wasmtime-wast', 'component'] }
+wasmtime-test-util = { workspace = true, features = [
+    'wasmtime-wast',
+    'component',
+] }
 bstr = "1.6.0"
 libc = { workspace = true }
 serde = { workspace = true }
@@ -117,7 +136,11 @@ test-programs-artifacts = { workspace = true }
 bytesize = "2.0.1"
 wit-component = { workspace = true }
 cranelift-filetests = { workspace = true }
-cranelift-codegen = { workspace = true, features = ["disas", "trace-log", "timing"] }
+cranelift-codegen = { workspace = true, features = [
+    "disas",
+    "trace-log",
+    "timing",
+] }
 cranelift-reader = { workspace = true }
 toml = { workspace = true }
 similar = { workspace = true }
@@ -145,34 +168,32 @@ opt-level = 0
 [workspace]
 resolver = '2'
 members = [
-  "cranelift",
-  "cranelift/assembler-x64/fuzz",
-  "cranelift/isle/fuzz",
-  "cranelift/isle/islec",
-  "cranelift/isle/veri/veri_engine",
-  "cranelift/isle/veri/veri_ir",
-  "cranelift/serde",
-  "crates/bench-api",
-  "crates/c-api/artifact",
-  "crates/environ/fuzz",
-  "crates/misc/component-async-tests",
-  "crates/test-programs",
-  "crates/wasi-preview1-component-adapter",
-  "crates/wasi-preview1-component-adapter/verify",
-  "crates/wasi-tls-nativetls",
-  "examples/fib-debug/wasm",
-  "examples/wasm",
-  "examples/tokio/wasm",
-  "examples/component/wasm",
-  "examples/resource-component/wasm",
-  "examples/min-platform",
-  "examples/min-platform/embedding",
-  "fuzz",
-  "winch/codegen",
+    "cranelift",
+    "cranelift/assembler-x64/fuzz",
+    "cranelift/isle/fuzz",
+    "cranelift/isle/islec",
+    "cranelift/isle/veri/veri_engine",
+    "cranelift/isle/veri/veri_ir",
+    "cranelift/serde",
+    "crates/bench-api",
+    "crates/c-api/artifact",
+    "crates/environ/fuzz",
+    "crates/misc/component-async-tests",
+    "crates/test-programs",
+    "crates/wasi-preview1-component-adapter",
+    "crates/wasi-preview1-component-adapter/verify",
+    "crates/wasi-tls-nativetls",
+    "examples/fib-debug/wasm",
+    "examples/wasm",
+    "examples/tokio/wasm",
+    "examples/component/wasm",
+    "examples/resource-component/wasm",
+    "examples/min-platform",
+    "examples/min-platform/embedding",
+    "fuzz",
+    "winch/codegen",
 ]
-exclude = [
-  'docs/rust_wasi_markdown_parser',
-]
+exclude = ['docs/rust_wasi_markdown_parser']
 
 [workspace.package]
 version = "38.0.0"
@@ -195,9 +216,9 @@ unused-macro-rules = 'warn'
 [workspace.lints.rust.unexpected_cfgs]
 level = "warn"
 check-cfg = [
-  'cfg(pulley_tail_calls)',
-  'cfg(pulley_assume_llvm_makes_tail_calls)',
-  'cfg(pulley_disable_interp_simd)',
+    'cfg(pulley_tail_calls)',
+    'cfg(pulley_assume_llvm_makes_tail_calls)',
+    'cfg(pulley_disable_interp_simd)',
 ]
 
 [workspace.lints.clippy]
@@ -253,8 +274,8 @@ wasmtime-wmemcheck = { path = "crates/wmemcheck", version = "=38.0.0", package =
 wasmtime-c-api-macros = { path = "crates/c-api-macros", version = "=38.0.0", package = 'wasmtime-internal-c-api-macros' }
 wasmtime-cache = { path = "crates/cache", version = "=38.0.0", package = 'wasmtime-internal-cache' }
 wasmtime-cranelift = { path = "crates/cranelift", version = "=38.0.0", package = 'wasmtime-internal-cranelift' }
-wasmtime-winch = { path = "crates/winch", version = "=38.0.0", package = 'wasmtime-internal-winch'  }
-wasmtime-explorer = { path = "crates/explorer", version = "=38.0.0", package = 'wasmtime-internal-explorer'  }
+wasmtime-winch = { path = "crates/winch", version = "=38.0.0", package = 'wasmtime-internal-winch' }
+wasmtime-explorer = { path = "crates/explorer", version = "=38.0.0", package = 'wasmtime-internal-explorer' }
 wasmtime-fiber = { path = "crates/fiber", version = "=38.0.0", package = 'wasmtime-internal-fiber' }
 wasmtime-jit-debug = { path = "crates/jit-debug", version = "=38.0.0", package = 'wasmtime-internal-jit-debug' }
 wasmtime-component-util = { path = "crates/component-util", version = "=38.0.0", package = 'wasmtime-internal-component-util' }
@@ -264,7 +285,7 @@ wasmtime-versioned-export-macros = { path = "crates/versioned-export-macros", ve
 wasmtime-slab = { path = "crates/slab", version = "=38.0.0", package = 'wasmtime-internal-slab' }
 wasmtime-jit-icache-coherence = { path = "crates/jit-icache-coherence", version = "=38.0.0", package = 'wasmtime-internal-jit-icache-coherence' }
 wasmtime-wit-bindgen = { path = "crates/wit-bindgen", version = "=38.0.0", package = 'wasmtime-internal-wit-bindgen' }
-wasmtime-math = { path = "crates/math", version = "=38.0.0", package = 'wasmtime-internal-math'  }
+wasmtime-math = { path = "crates/math", version = "=38.0.0", package = 'wasmtime-internal-math' }
 wasmtime-unwinder = { path = "crates/unwinder", version = "=38.0.0", package = 'wasmtime-internal-unwinder' }
 
 # Miscellaneous crates without a `wasmtime-*` prefix in their name but still
@@ -278,7 +299,10 @@ pulley-macros = { path = 'pulley/macros', version = "=38.0.0" }
 
 # Cranelift crates in this workspace
 cranelift-assembler-x64 = { path = "cranelift/assembler-x64", version = "0.125.0" }
-cranelift-codegen = { path = "cranelift/codegen", version = "0.125.0", default-features = false, features = ["std", "unwind"] }
+cranelift-codegen = { path = "cranelift/codegen", version = "0.125.0", default-features = false, features = [
+    "std",
+    "unwind",
+] }
 cranelift-frontend = { path = "cranelift/frontend", version = "0.125.0" }
 cranelift-entity = { path = "cranelift/entity", version = "0.125.0" }
 cranelift-native = { path = "cranelift/native", version = "0.125.0" }
@@ -329,7 +353,9 @@ wit-bindgen = { version = "0.46.0", default-features = false }
 wit-bindgen-rust-macro = { version = "0.46.0", default-features = false }
 
 # wasm-tools family:
-wasmparser = { version = "0.239.0", default-features = false, features = ['simd'] }
+wasmparser = { version = "0.239.0", default-features = false, features = [
+    'simd',
+] }
 wat = "1.239.0"
 wast = "239.0.0"
 wasmprinter = "0.239.0"
@@ -347,14 +373,20 @@ json-from-wast = "0.239.0"
 arbitrary = "1.4.0"
 mutatis = "0.3.2"
 cc = "1.0"
-object = { version = "0.37.3", default-features = false, features = ['read_core', 'elf'] }
+object = { version = "0.37.3", default-features = false, features = [
+    'read_core',
+    'elf',
+] }
 gimli = { version = "0.32.0", default-features = false, features = ['read'] }
 addr2line = { version = "0.25.0", default-features = false }
 anyhow = { version = "1.0.93", default-features = false }
 windows-sys = "0.60.0"
 env_logger = "0.11.5"
 log = { version = "0.4.27", default-features = false }
-clap = { version = "4.5.17", default-features = false, features = ["std", "derive"] }
+clap = { version = "4.5.17", default-features = false, features = [
+    "std",
+    "derive",
+] }
 clap_complete = "4.4.7"
 hashbrown = { version = "0.15", default-features = false }
 capstone = "0.13.0"
@@ -383,7 +415,7 @@ tempfile = "3.21.0"
 filecheck = "0.5.0"
 libc = { version = "0.2.112", default-features = true }
 file-per-thread-logger = "0.2.0"
-tokio = { version = "1.43.0", features = [ "rt", "time" ] }
+tokio = { version = "1.43.0", features = ["rt", "time"] }
 hyper = "1.0.1"
 http = "1.0.0"
 http-body = "1.0.0"
@@ -395,10 +427,18 @@ syn = "2.0.25"
 quote = "1.0"
 proc-macro2 = "1.0"
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
-tracing-subscriber = { version = "0.3.1", default-features = false, features = ['fmt', 'env-filter', 'ansi', 'tracing-log'] }
+tracing-subscriber = { version = "0.3.1", default-features = false, features = [
+    'fmt',
+    'env-filter',
+    'ansi',
+    'tracing-log',
+] }
 url = "2.3.1"
 postcard = { version = "1.0.8", default-features = false, features = ['alloc'] }
-criterion = { version = "0.6.0", default-features = false, features = ["html_reports", "rayon"] }
+criterion = { version = "0.6.0", default-features = false, features = [
+    "html_reports",
+    "rayon",
+] }
 rustc-hash = "2.0.0"
 libtest-mimic = "0.8.1"
 semver = { version = "1.0.17", default-features = false }
@@ -431,50 +471,50 @@ tokio-util = "0.7.4"
 # modifying locations marked WASMTIME_FEATURE_LIST
 [features]
 default = [
-  # All subcommands are included by default.
-  "run",
-  "compile",
-  "explore",
-  "serve",
-  "wast",
-  "config",
-  "completion",
-  "objdump",
+    # All subcommands are included by default.
+    "run",
+    "compile",
+    "explore",
+    "serve",
+    "wast",
+    "config",
+    "completion",
+    "objdump",
 
-  # On-by-default WASI features
-  "wasi-nn",
-  "wasi-threads",
-  "wasi-http",
-  "wasi-config",
-  "wasi-keyvalue",
-  "wasi-tls",
+    # On-by-default WASI features
+    "wasi-nn",
+    "wasi-threads",
+    "wasi-http",
+    "wasi-config",
+    "wasi-keyvalue",
+    "wasi-tls",
 
-  # Most features of Wasmtime are enabled by default.
-  "wat",
-  "parallel-compilation",
-  "pooling-allocator",
-  "cache",
-  "logging",
-  "demangle",
-  "cranelift",
-  "profiling",
-  "coredump",
-  "addr2line",
-  "debug-builtins",
-  "component-model",
-  "threads",
-  "gc",
-  "gc-drc",
-  "gc-null",
-  "stack-switching",
-  "winch",
-  "pulley",
+    # Most features of Wasmtime are enabled by default.
+    "wat",
+    "parallel-compilation",
+    "pooling-allocator",
+    "cache",
+    "logging",
+    "demangle",
+    "cranelift",
+    "profiling",
+    "coredump",
+    "addr2line",
+    "debug-builtins",
+    "component-model",
+    "threads",
+    "gc",
+    "gc-drc",
+    "gc-null",
+    "stack-switching",
+    "winch",
+    "pulley",
 
-  # Enable some nice features of clap by default, but they come at a binary size
-  # cost, so allow disabling this through disabling of our own `default`
-  # feature.
-  "clap/default",
-  "clap/wrap_help",
+    # Enable some nice features of clap by default, but they come at a binary size
+    # cost, so allow disabling this through disabling of our own `default`
+    # feature.
+    "clap/default",
+    "clap/wrap_help",
 ]
 
 # ========================================
@@ -488,10 +528,10 @@ trace-log = ["wasmtime/trace-log"]
 memory-protection-keys = ["wasmtime-cli-flags/memory-protection-keys"]
 profile-pulley = ["wasmtime/profile-pulley"]
 component-model-async = [
-  "wasmtime-cli-flags/component-model-async",
-  "component-model",
-  "wasmtime-wasi?/p3",
-  "wasmtime-wasi-http?/p3",
+    "wasmtime-cli-flags/component-model-async",
+    "component-model",
+    "wasmtime-wasi?/p3",
+    "wasmtime-wasi-http?/p3",
 ]
 
 # This feature, when enabled, will statically compile out all logging statements
@@ -506,14 +546,23 @@ disable-logging = ["log/max_level_off", "tracing/max_level_off"]
 wasi-nn = ["dep:wasmtime-wasi-nn"]
 wasi-tls = ["dep:wasmtime-wasi-tls"]
 wasi-threads = ["dep:wasmtime-wasi-threads", "threads"]
-wasi-http = ["component-model", "dep:wasmtime-wasi-http", "dep:tokio", "dep:hyper", "wasmtime-wasi-http/default-send-request"]
+wasi-http = [
+    "component-model",
+    "dep:wasmtime-wasi-http",
+    "dep:tokio",
+    "dep:hyper",
+    "wasmtime-wasi-http/default-send-request",
+]
 wasi-config = ["dep:wasmtime-wasi-config"]
 wasi-keyvalue = ["dep:wasmtime-wasi-keyvalue"]
-pooling-allocator = ["wasmtime/pooling-allocator", "wasmtime-cli-flags/pooling-allocator"]
+pooling-allocator = [
+    "wasmtime/pooling-allocator",
+    "wasmtime-cli-flags/pooling-allocator",
+]
 component-model = [
-  "wasmtime/component-model",
-  "wasmtime-wast?/component-model",
-  "wasmtime-cli-flags/component-model"
+    "wasmtime/component-model",
+    "wasmtime-wast?/component-model",
+    "wasmtime-cli-flags/component-model",
 ]
 wat = ["dep:wat", "wasmtime/wat"]
 cache = ["dep:wasmtime-cache", "wasmtime-cli-flags/cache"]
@@ -530,38 +579,41 @@ gc = ["wasmtime-cli-flags/gc", "wasmtime/gc"]
 gc-drc = ["gc", "wasmtime/gc-drc", "wasmtime-cli-flags/gc-drc"]
 gc-null = ["gc", "wasmtime/gc-null", "wasmtime-cli-flags/gc-null"]
 pulley = ["wasmtime-cli-flags/pulley"]
-stack-switching = ["wasmtime/stack-switching", "wasmtime-cli-flags/stack-switching"]
+stack-switching = [
+    "wasmtime/stack-switching",
+    "wasmtime-cli-flags/stack-switching",
+]
 
 # CLI subcommands for the `wasmtime` executable. See `wasmtime $cmd --help`
 # for more information on each subcommand.
 serve = [
-  "wasi-http",
-  "component-model",
-  "dep:http-body-util",
-  "dep:http",
-  "wasmtime-cli-flags/async",
+    "wasi-http",
+    "component-model",
+    "dep:http-body-util",
+    "dep:http",
+    "wasmtime-cli-flags/async",
 ]
 explore = ["dep:wasmtime-explorer", "dep:tempfile"]
 wast = ["dep:wasmtime-wast"]
 config = ["cache"]
 compile = ["cranelift"]
 run = [
-  "dep:wasmtime-wasi",
-  "wasmtime/runtime",
-  "wasmtime/wave",
-  "dep:listenfd",
-  "dep:wasi-common",
-  "dep:tokio",
-  "wasmtime-cli-flags/async",
+    "dep:wasmtime-wasi",
+    "wasmtime/runtime",
+    "wasmtime/wave",
+    "dep:listenfd",
+    "dep:wasi-common",
+    "dep:tokio",
+    "wasmtime-cli-flags/async",
 ]
 completion = ["dep:clap_complete"]
 objdump = [
-  'dep:object',
-  'dep:cranelift-codegen',
-  'dep:capstone',
-  'dep:termcolor',
-  'dep:gimli',
-  'pulley-interpreter/disas',
+    'dep:object',
+    'dep:cranelift-codegen',
+    'dep:capstone',
+    'dep:termcolor',
+    'dep:gimli',
+    'pulley-interpreter/disas',
 ]
 
 [[test]]
@@ -631,3 +683,6 @@ debug = "line-tables-only"
 inherits = "release"
 codegen-units = 1
 lto = true
+
+[patch.crates-io]
+wasmparser = { path = "../wasm-tools/crates/wasmparser" }

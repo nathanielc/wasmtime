@@ -636,6 +636,7 @@ impl<'a, 'data> Translator<'a, 'data> {
                 encoding,
                 range,
             } => {
+                log::trace!("-> version");
                 self.validator.version(num, encoding, &range)?;
 
                 match encoding {
@@ -647,6 +648,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             }
 
             Payload::End(offset) => {
+                log::trace!("-> end");
                 assert!(self.result.types.is_none());
                 self.result.types = Some(self.validator.end(offset)?);
 
@@ -679,6 +681,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // in `Version` and `End` since multiple type sections can appear
             // within a component.
             Payload::ComponentTypeSection(s) => {
+                log::trace!("-> component type section");
                 let mut component_type_index =
                     self.validator.types(0).unwrap().component_type_count();
                 self.validator.component_type_section(&s)?;
@@ -711,6 +714,7 @@ impl<'a, 'data> Translator<'a, 'data> {
                 }
             }
             Payload::CoreTypeSection(s) => {
+                log::trace!("-> core type section");
                 self.validator.core_type_section(&s)?;
             }
 
@@ -718,6 +722,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // which is to simply record the name of the import and the type
             // information associated with it.
             Payload::ComponentImportSection(s) => {
+                log::trace!("-> component import section");
                 self.validator.component_import_section(&s)?;
                 for import in s {
                     let import = import?;
@@ -734,6 +739,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // Entries in the canonical section will get initializers recorded
             // with the listed options for lifting/lowering.
             Payload::ComponentCanonicalSection(s) => {
+                log::trace!("-> component canonical section");
                 let types = self.validator.types(0).unwrap();
                 let mut core_func_index = types.function_count();
                 self.validator.component_canonical_section(&s)?;
@@ -1125,6 +1131,7 @@ impl<'a, 'data> Translator<'a, 'data> {
                 parser,
                 unchecked_range,
             } => {
+                log::trace!("-> module section");
                 let index = self.validator.types(0).unwrap().module_count();
                 self.validator.module_section(&unchecked_range)?;
                 let static_module_index = self.static_modules.next_key();
@@ -1170,6 +1177,7 @@ impl<'a, 'data> Translator<'a, 'data> {
                 parser,
                 unchecked_range,
             } => {
+                log::trace!("-> component section");
                 self.validator.component_section(&unchecked_range)?;
                 self.lexical_scopes.push(LexicalScope {
                     parser: mem::replace(&mut self.parser, parser),
@@ -1183,6 +1191,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // largely just records the arguments given from wasmparser into a
             // `HashMap` for processing later during inlining.
             Payload::InstanceSection(s) => {
+                log::trace!("-> instance section");
                 self.validator.instance_section(&s)?;
                 for instance in s {
                     let init = match instance? {
@@ -1198,6 +1207,7 @@ impl<'a, 'data> Translator<'a, 'data> {
                 }
             }
             Payload::ComponentInstanceSection(s) => {
+                log::trace!("-> component instance section");
                 let mut index = self.validator.types(0).unwrap().component_instance_count();
                 self.validator.component_instance_section(&s)?;
                 for instance in s {
@@ -1226,6 +1236,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // records the index of what's exported and that's tracked further
             // later during inlining.
             Payload::ComponentExportSection(s) => {
+                log::trace!("-> component export section");
                 self.validator.component_export_section(&s)?;
                 for export in s {
                     let export = export?;
@@ -1239,6 +1250,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             }
 
             Payload::ComponentStartSection { start, range } => {
+                log::trace!("-> component start section");
                 self.validator.component_start_section(&start, &range)?;
                 unimplemented!("component start section");
             }
@@ -1247,6 +1259,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // recorded as an initializer of the appropriate type with outer
             // aliases handled specially via upvars and type processing.
             Payload::ComponentAliasSection(s) => {
+                log::trace!("-> component alias section");
                 self.validator.component_alias_section(&s)?;
                 for alias in s {
                     let init = match alias? {
@@ -1279,7 +1292,9 @@ impl<'a, 'data> Translator<'a, 'data> {
             //
             // FIXME(WebAssembly/component-model#14): probably want to specify
             // and parse a `name` section here.
-            Payload::CustomSection { .. } => {}
+            Payload::CustomSection { .. } => {
+                log::trace!("-> component custom section");
+            }
 
             // Anything else is either not reachable since we never enable the
             // feature in Wasmtime or we do enable it and it's a bug we don't
@@ -1287,6 +1302,7 @@ impl<'a, 'data> Translator<'a, 'data> {
             // if it gets past validation provide a helpful error message to
             // debug.
             other => {
+                log::trace!("-> other");
                 self.validator.payload(&other)?;
                 panic!("unimplemented section {other:?}");
             }
