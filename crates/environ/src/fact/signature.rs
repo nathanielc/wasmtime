@@ -3,9 +3,10 @@
 use crate::component::{
     ComponentTypesBuilder, InterfaceType, MAX_FLAT_ASYNC_PARAMS, MAX_FLAT_PARAMS, MAX_FLAT_RESULTS,
 };
+use crate::fact::core_types::CoreTypes;
 use crate::fact::{AdapterOptions, Options};
-use crate::{WasmValType, prelude::*};
-use wasm_encoder::ValType;
+use crate::{WasmHeapType, WasmValType, prelude::*};
+use wasm_encoder::{AbstractHeapType, HeapType, RefType, StorageType, ValType};
 
 use super::LinearMemoryOptions;
 
@@ -26,25 +27,70 @@ impl ComponentTypesBuilder {
     /// This is used to generate the core wasm signatures for functions that are
     /// imported (matching whatever was `canon lift`'d) and functions that are
     /// exported (matching the generated function from `canon lower`).
-    pub(super) fn signature(&self, options: &AdapterOptions) -> Signature {
+    pub(super) fn signature(
+        &self,
+        options: &AdapterOptions,
+        core_types: &mut CoreTypes,
+    ) -> Signature {
         let f = &self.module_types_builder()[options.options.core_type]
             .composite_type
             .inner
             .unwrap_func();
+        log::trace!("fact::sig: {f:?}");
         Signature {
-            params: f.params().iter().map(|ty| self.val_type(ty)).collect(),
-            results: f.returns().iter().map(|ty| self.val_type(ty)).collect(),
+            params: f
+                .params()
+                .iter()
+                .map(|ty| self.val_type(ty, core_types))
+                .collect(),
+            results: f
+                .returns()
+                .iter()
+                .map(|ty| self.val_type(ty, core_types))
+                .collect(),
         }
     }
 
-    fn val_type(&self, ty: &WasmValType) -> ValType {
+    fn val_type(&self, ty: &WasmValType, core_types: &mut CoreTypes) -> ValType {
         match ty {
             WasmValType::I32 => ValType::I32,
             WasmValType::I64 => ValType::I64,
             WasmValType::F32 => ValType::F32,
             WasmValType::F64 => ValType::F64,
             WasmValType::V128 => ValType::V128,
-            WasmValType::Ref(_) => todo!("CM+GC"),
+            WasmValType::Ref(ref_type) => match ref_type.heap_type {
+                WasmHeapType::Extern => ValType::Ref(RefType {
+                    nullable: ref_type.nullable,
+                    heap_type: HeapType::Abstract {
+                        shared: false,
+                        ty: AbstractHeapType::Extern,
+                    },
+                }),
+                WasmHeapType::NoExtern => todo!(),
+                WasmHeapType::Func => todo!(),
+                WasmHeapType::ConcreteFunc(engine_or_module_type_index) => todo!(),
+                WasmHeapType::NoFunc => todo!(),
+                WasmHeapType::Exn => todo!(),
+                WasmHeapType::ConcreteExn(engine_or_module_type_index) => todo!(),
+                WasmHeapType::NoExn => todo!(),
+                WasmHeapType::Cont => todo!(),
+                WasmHeapType::ConcreteCont(engine_or_module_type_index) => todo!(),
+                WasmHeapType::NoCont => todo!(),
+                WasmHeapType::Any => todo!(),
+                WasmHeapType::Eq => todo!(),
+                WasmHeapType::I31 => todo!(),
+                WasmHeapType::Array => todo!(),
+                WasmHeapType::ConcreteArray(engine_or_module_type_index) => {
+                    let ty = core_types.array(&StorageType::I8, true);
+                    ValType::Ref(RefType {
+                        nullable: ref_type.nullable,
+                        heap_type: HeapType::Concrete(ty),
+                    })
+                }
+                WasmHeapType::Struct => todo!(),
+                WasmHeapType::ConcreteStruct(engine_or_module_type_index) => todo!(),
+                WasmHeapType::None => todo!(),
+            },
         }
     }
 

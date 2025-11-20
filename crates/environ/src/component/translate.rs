@@ -9,15 +9,21 @@ use crate::{
 };
 use anyhow::anyhow;
 use anyhow::{Result, bail};
+use core::str::FromStr;
 use cranelift_entity::SecondaryMap;
 use cranelift_entity::packed_option::PackedOption;
 use indexmap::IndexMap;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::mem;
+use wasm_encoder::reencode::utils::val_type;
+use wasmparser::CompositeInnerType;
+use wasmparser::ValType;
 use wasmparser::component_types::{
     AliasableResourceId, ComponentCoreModuleTypeId, ComponentDefinedTypeId, ComponentEntityType,
     ComponentFuncTypeId, ComponentInstanceTypeId, ComponentValType,
 };
+use wasmparser::types::RecGroupId;
 use wasmparser::types::Types;
 use wasmparser::{Chunk, ComponentImportName, Encoding, Parser, Payload, Validator};
 
@@ -1569,7 +1575,61 @@ impl<'a, 'data> Translator<'a, 'data> {
     fn core_func_signature(&mut self, index: u32) -> WasmResult<ModuleInternedTypeIndex> {
         let types = self.validator.types(0).unwrap();
         let id = types.core_function_at(index);
+        // Find all types per rec group reachable from this type and intern them all.
+        let ty = &types[id];
+        let mut rec_group_ids = HashSet::new();
+        rec_group_ids_from_sub_type(ty, types, &mut rec_group_ids);
+        for rec_group_id in rec_group_ids {
+            self.types
+                .module_types_builder()
+                .intern_rec_group(types, rec_group_id)?;
+        }
         self.types.module_types_builder().intern_type(types, id)
+    }
+}
+
+fn rec_group_ids_from_sub_type(
+    ty: &wasmparser::SubType,
+    validator_types: wasmparser::types::TypesRef<'_>,
+    rec_group_ids: &mut HashSet<RecGroupId>,
+) {
+    match &ty.composite_type.inner {
+        CompositeInnerType::Func(ty) => {
+            for ty in ty.params() {
+                rec_group_id_from_val_type(ty, validator_types, rec_group_ids);
+            }
+            for ty in ty.results() {
+                rec_group_id_from_val_type(ty, validator_types, rec_group_ids);
+            }
+        }
+        CompositeInnerType::Array(_ty) => {
+            todo!()
+        }
+        CompositeInnerType::Struct(_ty) => {
+            todo!()
+        }
+        CompositeInnerType::Cont(_ty) => {
+            todo!()
+        }
+    };
+}
+
+fn rec_group_id_from_val_type(
+    val_type: &wasmparser::ValType,
+    validator_types: wasmparser::types::TypesRef<'_>,
+    rec_group_ids: &mut HashSet<RecGroupId>,
+) {
+    match val_type {
+        ValType::I32 | ValType::I64 | ValType::F32 | ValType::F64 | ValType::V128 => {}
+        ValType::Ref(ref_type) => match ref_type.heap_type() {
+            wasmparser::HeapType::Abstract { .. } => todo!(),
+            wasmparser::HeapType::Concrete(unpacked_index) => match unpacked_index {
+                wasmparser::UnpackedIndex::Module(_) | wasmparser::UnpackedIndex::RecGroup(_) => {}
+                wasmparser::UnpackedIndex::Id(core_type_id) => {
+                    rec_group_ids.insert(validator_types.rec_group_id_of(core_type_id));
+                }
+            },
+        },
     }
 }
 

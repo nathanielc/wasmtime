@@ -280,7 +280,7 @@ impl<'a> Module<'a> {
         // Import the core wasm function which was lifted using its appropriate
         // signature since the exported function this adapter generates will
         // call the lifted function.
-        let signature = self.types.signature(&lift);
+        let signature = self.types.signature(&lift, &mut self.core_types);
         let ty = self
             .core_types
             .function(&signature.params, &signature.results);
@@ -880,7 +880,7 @@ impl Options {
     ) -> Option<&'a [FlatType]> {
         let flat = types.flat_types(ty)?;
         match self.data_model {
-            DataModel::Gc {} => todo!("CM+GC"),
+            DataModel::Gc {} => Some(flat.memory32),
             DataModel::LinearMemory(mem_opts) => Some(if mem_opts.memory64 {
                 flat.memory64
             } else {

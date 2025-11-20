@@ -88,8 +88,12 @@ pub(super) fn compile(module: &mut Module<'_>, adapter: &AdapterData) {
         module: &'b mut Module<'a>,
         adapter: &AdapterData,
     ) -> (Compiler<'a, 'b>, Signature, Signature) {
-        let lower_sig = module.types.signature(&adapter.lower);
-        let lift_sig = module.types.signature(&adapter.lift);
+        let lower_sig = module
+            .types
+            .signature(&adapter.lower, &mut module.core_types);
+        let lift_sig = module
+            .types
+            .signature(&adapter.lift, &mut module.core_types);
         let ty = module
             .core_types
             .function(&lower_sig.params, &lower_sig.results);
@@ -242,7 +246,9 @@ pub(super) fn compile(module: &mut Module<'_>, adapter: &AdapterData) {
             // `async-return` function to write the result to the caller's
             // linear memory and deliver a `STATUS_RETURNED` event to the
             // caller.
-            let lift_sig = module.types.signature(&adapter.lift);
+            let lift_sig = module
+                .types
+                .signature(&adapter.lift, &mut module.core_types);
             let start = async_start_adapter(module);
             let return_ = async_return_adapter(module);
             let (compiler, lower_sig, ..) = compiler(module, adapter);
@@ -851,9 +857,12 @@ impl<'a, 'b> Compiler<'a, 'b> {
         } else {
             MAX_FLAT_PARAMS
         };
+        log::trace!("param_locals: {param_locals:?}");
+        log::trace!("src_tys: {src_tys:?}");
         let src_flat =
             self.types
                 .flatten_types(lower_opts, max_flat_params, src_tys.iter().copied());
+        log::trace!("src_flat: {src_flat:?}");
         let dst_flat =
             self.types
                 .flatten_types(lift_opts, MAX_FLAT_PARAMS, dst_tys.iter().copied());
